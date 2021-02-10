@@ -208,12 +208,14 @@ class AutoLTREvaluator(LTREvaluator):
         else:
             auto_evaluator.setup_auto_kfold_cv_eval(debug=debug, model_id=model_id, data_id=data_id,
                                                     dir_data=dir_data, dir_output=dir_output)
+
         global_study.optimize(auto_evaluator, n_trials=10)
 
         global_study_dic = {}
         global_study_dic["best_params"] = global_study.best_params
         global_study_dic["best_value"] = global_study.best_value
-        dir_best = '/'.join([dir_json, 'best_json'])
+
+        dir_best = '/'.join([self.dir_run, 'best_json'])
         if not os.path.exists(dir_best): os.makedirs(dir_best)
         with open('/'.join([dir_best, 'Best_{}Parameter.json'.format(model_id)]), 'w') as f:
             json.dump(global_study_dic, f, indent=4)
