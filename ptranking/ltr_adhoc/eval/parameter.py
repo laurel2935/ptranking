@@ -172,6 +172,7 @@ class EvalSetting(Parameter):
         else:
             self.use_json = True
             self.json_dict = self.load_para_json(para_json=eval_json)
+            self.dir_output = self.json_dict["dir_output"]
 
     def load_para_json(self, para_json):
         with open(para_json) as json_file:
@@ -284,6 +285,7 @@ class DataSetting(Parameter):
             self.use_json = True
             self.json_dict = self.load_para_json(para_json=data_json)
             self.data_id = self.json_dict["data_id"]
+            self.dir_data = self.json_dict["dir_data"]
 
     def load_para_json(self, para_json):
         with open(para_json) as json_file:

@@ -44,9 +44,9 @@ if __name__ == '__main__':
 
 	cuda = None				# the gpu id, e.g., 0 or 1, otherwise, set it as None indicating to use cpu
 
-	debug = False            # in a debug mode, we just check whether the model can operate
+	debug = True            # in a debug mode, we just check whether the model can operate
 
-	config_with_json = True # specify configuration with json files or not
+	config_with_json = False # specify configuration with json files or not
 
 	models_to_run = [
 		#'RankMSE',
@@ -102,8 +102,9 @@ if __name__ == '__main__':
 
 		''' Location of the adopted data '''
 		#dir_data = '/Users/dryuhaitao/WorkBench/Corpus/' + 'LETOR4.0/MQ2008/'
-		dir_data = '/home/dl-box/WorkBench/Datasets/L2R/LETOR4.0/MQ2008/'
+		#dir_data = '/home/dl-box/WorkBench/Datasets/L2R/LETOR4.0/MQ2008/'
 		#dir_data = '/Users/solar/WorkBench/Datasets/L2R/LETOR4.0/MQ2008/'
+		dir_data = '/Users/iimac/Workbench/Corpus/L2R/LETOR4.0/MQ2008/'
 
 		#data_id = 'Istella_X'
 		#dir_data = '/home/dl-box/WorkBench/Datasets/L2R/ISTELLA_L2R/Istella_X/'
@@ -116,8 +117,9 @@ if __name__ == '__main__':
 
 		''' Output directory '''
 		#dir_output = '/Users/dryuhaitao/WorkBench/CodeBench/Bench_Output/NeuralLTR/Listwise/'
-		dir_output = '/home/dl-box/WorkBench/CodeBench/PyCharmProject/Project_output/Out_L2R/Listwise/'
+		#dir_output = '/home/dl-box/WorkBench/CodeBench/PyCharmProject/Project_output/Out_L2R/Listwise/'
 		#dir_output = '/Users/solar/WorkBench/CodeBench/PyCharmProject/Project_output/Out_L2R/'
+		dir_output = '/Users/iimac/Workbench/CodeBench/Output/NeuralLTR/'
 
 		for model_id in models_to_run:
 			evaluator.run(debug=debug, grid_search=grid_search,
