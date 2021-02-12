@@ -24,8 +24,8 @@ class TreeLTREvaluator(LTREvaluator):
     """
     The class for evaluating different tree-based learning to rank methods.
     """
-    def __init__(self, frame_id=LTRFRAME_TYPE.GBDT):
-        super(TreeLTREvaluator, self).__init__(frame_id=frame_id)
+    def __init__(self, frame_id=LTRFRAME_TYPE.GBDT, cuda=None):
+        super(TreeLTREvaluator, self).__init__(frame_id=frame_id, cuda=cuda)
 
     def display_information(self, data_dict):
         """

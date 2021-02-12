@@ -4,7 +4,7 @@
 """Description
 Given the neural ranker, compute nDCG values.
 """
-
+import numpy as np
 import torch
 
 from ptranking.data.data_utils import LABEL_TYPE
@@ -22,7 +22,15 @@ def ndcg_at_k(ranker=None, test_data=None, k=10, label_type=LABEL_TYPE.MultiLabe
         if batch_labels.size(1) < k: continue # skip the query if the number of associated documents is smaller than k
 
         if gpu: batch_ranking = batch_ranking.to(device)
-        batch_rele_preds = ranker.predict(batch_ranking)
+        if ranker.__class__.__name__ == 'Booster':
+            batch_ranking = batch_ranking.cpu().numpy()
+            batch_ranking = np.squeeze(batch_ranking)
+            batch_rele_preds = ranker.predict(batch_ranking)
+            batch_rele_preds = torch.from_numpy(batch_rele_preds)
+            batch_rele_preds = torch.unsqueeze(batch_rele_preds, 0)
+        else:
+            batch_rele_preds = ranker.predict(batch_ranking)
+
         if gpu: batch_rele_preds = batch_rele_preds.cpu()
 
         _, batch_sorted_inds = torch.sort(batch_rele_preds, dim=1, descending=True)
