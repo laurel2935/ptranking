@@ -1,0 +1,10 @@
+{
+    "best_params": {
+        "hd_hn_tl_af": "R",
+        "num_layers": 5,
+        "RD": false,
+        "apply_tl_af": true,
+        "sigma": 1.0
+    },
+    "best_value": 0.5505307912826538
+}
