@@ -1,7 +1,7 @@
 {
   "AutoDataSetting": {
     "data_id":"MQ2008_Super",
-    "dir_data":"/Users/iimac/Workbench/Corpus/L2R/LETOR4.0/MQ2008/",
+    "dir_data":"/Volumes/data_hdd/dataset/MQ2008/",
 
     "min_docs":[10],
     "min_rele":[1],
@@ -13,7 +13,7 @@
   },
 
   "AutoEvalSetting": {
-    "dir_output":"/Users/iimac/Workbench/CodeBench/Output/NeuralLTR/",
+    "dir_output":"/Volumes/data_hdd/l2r_output/auto/",
 
     "epochs":100,
 

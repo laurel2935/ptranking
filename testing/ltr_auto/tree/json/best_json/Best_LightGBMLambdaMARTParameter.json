@@ -1,0 +1,12 @@
+{
+    "best_params": {
+        "BT": "gbdt",
+        "metric": "ndcg",
+        "leaves": 400,
+        "trees": 1000,
+        "MiData": 50,
+        "MSH": 200,
+        "LR": 0.05
+    },
+    "best_value": 0.2171042412519455
+}

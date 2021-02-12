@@ -56,8 +56,12 @@ if __name__ == '__main__':
         # dir_json = '/Users/dryuhaitao/WorkBench/Dropbox/CodeBench/GitPool/wildltr_ptranking/testing/ltr_adhoc/json/'
         # dir_json = '/Volumes/data_hdd/ptranking.github.io/testing/ltr_adhoc/json/'
         # dir_json = '/Users/solar/WorkBench/Dropbox/CodeBench/GitPool/wildltr_ptranking/testing/ltr_adhoc/json/'
+<<<<<<< HEAD
         # dir_json = '/Volumes/data_hdd/ptranking/testing/ltr_auto/tree/json/'
         dir_json = '/Users/iimac/II-Research Dropbox/Hai-Tao Yu/CodeBench/GitPool/auto_ptr/testing/ltr_auto/tree/json/'
+=======
+        dir_json = '/Volumes/data_hdd/ptranking/testing/ltr_auto/tree/json/'
+>>>>>>> update ltr_auto
 
         auto_evaluator.run(global_study=global_study, auto_evaluator=auto_evaluator, debug=debug,
                                model_id='LightGBMLambdaMART', config_with_json=True, dir_json=dir_json)
