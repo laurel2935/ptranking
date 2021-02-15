@@ -2,6 +2,7 @@
 import json
 from itertools import product
 
+from ptranking.data.data_utils import get_default_scaler_setting, get_data_meta
 from ptranking.ltr_adhoc.eval.parameter import EvalSetting, DataSetting, ScoringFunctionParameter
 
 class AutoEvalSetting(EvalSetting):
@@ -25,14 +26,14 @@ class AutoEvalSetting(EvalSetting):
 		eval_dict = self.eval_dict
 		s1, s2 = (':', '\n') if log else ('_', '_')
 
-		do_vali, epochs = eval_dict['do_validation'], eval_dict['epochs']
+		vali_obj, epochs = eval_dict['vali_obj'], eval_dict['epochs']
 
-		eval_string = s2.join([s1.join(['epochs', str(epochs)]), s1.join(['do_validation', str(do_vali)])]) if log \
-			else s1.join(['EP', str(epochs), 'V', str(do_vali)])
+		eval_string = s2.join([s1.join(['epochs', str(epochs)]), s1.join(['Vali_Obj', str(vali_obj)])]) if log \
+			else s1.join(['EP', str(epochs), 'Vali_Obj', str(vali_obj)])
 
 		return eval_string
 
-	def default_setting(self):
+	def load_setting(self):
 		"""
 		A default setting for evaluation
 		:param debug:
@@ -40,64 +41,46 @@ class AutoEvalSetting(EvalSetting):
 		:param dir_output:
 		:return:
 		"""
-		do_log = False if self.debug else True
-		do_validation, do_summary = True, False  # checking loss variation
-		log_step = 2
-		epochs = 20 if self.debug else 100
-		vali_k = 5
+		if self.use_json: # using json file
+			dir_output = self.json_dict['dir_output']
+			epochs = 5 if self.debug else self.json_dict['epochs']  # debug is added for a quick check
+			vali_obj, vali_k = self.json_dict['vali_obj'], self.json_dict['vali_k']
+			cutoffs = self.json_dict['cutoffs']
+			do_log, log_step = self.json_dict['do_log'], self.json_dict['log_step']
+			do_summary = self.json_dict['do_summary']
+			#loss_guided = self.json_dict['loss_guided']
+			#mask_label = self.json_dict['mask']['mask_label']
+			#choice_mask_type = self.json_dict['mask']['mask_type']
+			#choice_mask_ratio = self.json_dict['mask']['mask_ratio']
+
+			base_dict = dict(debug=False, grid_search=True, dir_output=dir_output)
+		else:
+			base_dict = dict(debug=self.debug, grid_search=True, dir_output=self.dir_output)
+			epochs = 20 if self.debug else 100
+			vali_obj = False if self.debug else True  # True, False
+			vali_k, cutoffs = 5, [1, 3, 5, 10, 20, 50]
+			do_log = False if self.debug else True
+			log_step = 2
+			do_summary, loss_guided = False, False
+
+			#mask_label = False if self.debug else False
+			#choice_mask_type = ['rand_mask_all']
+			#choice_mask_ratio = [0.2]
+
+		do_validation = True if vali_obj else False
+		self.eval_dict = dict(epochs=epochs, vali_obj=vali_obj, vali_k=vali_k, cutoffs=cutoffs,
+							  do_log=do_log, log_step=log_step, do_summary=do_summary, do_validation=do_validation)
+		self.eval_dict.update(base_dict)
 
 		''' setting for exploring the impact of randomly removing some ground-truth labels '''
 		mask_label = False
 		mask_type = 'rand_mask_all'
 		mask_ratio = 0.2
 
-		# more evaluation settings that are rarely changed
-		self.eval_dict = dict(debug=self.debug, grid_search=False, dir_output=self.dir_output,
-							  cutoffs=[1, 3, 5, 10, 20, 50], do_validation=do_validation, vali_k=vali_k,
-							  do_summary=do_summary, do_log=do_log, log_step=log_step, loss_guided=False, epochs=epochs,
-							  mask_label=mask_label, mask_type=mask_type, mask_ratio=mask_ratio)
+		mask_dict = dict(mask_label=mask_label, mask_type=mask_type, mask_ratio=mask_ratio)
+		self.eval_dict.update(mask_dict)
 
 		return self.eval_dict
-
-	def grid_search(self):
-		if self.use_json: # using json file
-			dir_output = self.json_dict['dir_output']
-			epochs = 5 if self.debug else self.json_dict['epochs']  # debug is added for a quick check
-			do_validation, vali_k = self.json_dict['do_validation'], self.json_dict['vali_k']
-			cutoffs = self.json_dict['cutoffs']
-			do_log, log_step = self.json_dict['do_log'], self.json_dict['log_step']
-			do_summary = self.json_dict['do_summary']
-			loss_guided = self.json_dict['loss_guided']
-			mask_label = self.json_dict['mask']['mask_label']
-			choice_mask_type = self.json_dict['mask']['mask_type']
-			choice_mask_ratio = self.json_dict['mask']['mask_ratio']
-
-			base_dict = dict(debug=False, grid_search=True, dir_output=dir_output)
-		else:
-			base_dict = dict(debug=self.debug, grid_search=True, dir_output=self.dir_output)
-			epochs = 20 if self.debug else 100
-			do_validation = False if self.debug else True  # True, False
-			vali_k, cutoffs = 5, [1, 3, 5, 10, 20, 50]
-			do_log = False if self.debug else True
-			log_step = 2
-			do_summary, loss_guided = False, False
-
-			mask_label = False if self.debug else False
-			choice_mask_type = ['rand_mask_all']
-			choice_mask_ratio = [0.2]
-
-		self.eval_dict = dict(epochs=epochs, do_validation=do_validation, vali_k=vali_k, cutoffs=cutoffs,
-							  do_log=do_log, log_step=log_step, do_summary=do_summary, loss_guided=loss_guided,
-							  mask_label=mask_label)
-		self.eval_dict.update(base_dict)
-
-		if mask_label:
-			for mask_type, mask_ratio in product(choice_mask_type, choice_mask_ratio):
-				mask_dict = dict(mask_type=mask_type, mask_ratio=mask_ratio)
-				self.eval_dict.update(mask_dict)
-				yield self.eval_dict
-		else:
-			yield self.eval_dict
 
 
 class AutoDataSetting(DataSetting):
@@ -111,6 +94,53 @@ class AutoDataSetting(DataSetting):
 		with open(para_json) as json_file:
 			json_dict = json.load(json_file)["AutoDataSetting"]
 		return json_dict
+
+	def load_setting(self):
+		if self.use_json:
+			choice_min_docs = self.json_dict['min_docs']
+			choice_min_rele = self.json_dict['min_rele']
+			choice_binary_rele = self.json_dict['binary_rele']
+			choice_unknown_as_zero = self.json_dict['unknown_as_zero']
+			choice_train_presort = self.json_dict['train_presort']
+			choice_train_batch_size = self.json_dict['train_batch_size']
+			# hard-coding for rarely changed settings
+			base_data_dict = dict(data_id=self.data_id, dir_data=self.json_dict["dir_data"], test_presort=True,
+								  validation_presort=True, validation_batch_size=1, test_batch_size=1)
+		else:
+			choice_min_docs = [10]
+			choice_min_rele = [1]
+			choice_binary_rele = [False]
+			choice_unknown_as_zero = [False]
+			choice_train_presort = [True]
+			choice_train_batch_size = [1]  # number of sample rankings per query
+
+			base_data_dict = dict(data_id=self.data_id, dir_data=self.dir_data, test_presort=True,
+								  validation_presort=True, validation_batch_size=1, test_batch_size=1)
+
+		data_meta = get_data_meta(data_id=self.data_id)  # add meta-information
+		base_data_dict.update(data_meta)
+
+		choice_scale_data, choice_scaler_id, choice_scaler_level = get_default_scaler_setting(data_id=self.data_id,
+																							  grid_search=True)
+
+		for min_docs, min_rele, train_batch_size in product(choice_min_docs, choice_min_rele, choice_train_batch_size):
+			threshold_dict = dict(min_docs=min_docs, min_rele=min_rele, train_batch_size=train_batch_size)
+
+			for binary_rele, unknown_as_zero, train_presort in product(choice_binary_rele, choice_unknown_as_zero,
+																	   choice_train_presort):
+				custom_dict = dict(binary_rele=binary_rele, unknown_as_zero=unknown_as_zero,
+								   train_presort=train_presort)
+
+				for scale_data, scaler_id, scaler_level in product(choice_scale_data, choice_scaler_id,
+																   choice_scaler_level):
+					scale_dict = dict(scale_data=scale_data, scaler_id=scaler_id, scaler_level=scaler_level)
+
+					self.data_dict = dict()
+					self.data_dict.update(base_data_dict)
+					self.data_dict.update(threshold_dict)
+					self.data_dict.update(custom_dict)
+					self.data_dict.update(scale_dict)
+					return self.data_dict
 
 
 class AutoScoringFunctionParameter(ScoringFunctionParameter):

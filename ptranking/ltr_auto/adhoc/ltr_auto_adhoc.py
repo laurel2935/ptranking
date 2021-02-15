@@ -3,6 +3,8 @@ import os
 import json
 import optuna
 
+import torch
+
 from ptranking.ltr_adhoc.eval.eval_utils import ndcg_at_k
 from ptranking.ltr_adhoc.eval.ltr import LTREvaluator
 from ptranking.ltr_auto.base.auto_parameter import AutoEvalSetting, AutoDataSetting, AutoScoringFunctionParameter
@@ -13,48 +15,82 @@ from ptranking.ltr_auto.adhoc.adhoc_auto_parameter import RankNetAutoParameter, 
 
 class LTRObjective(object):
     """
-    The customized optuna objective over training data and validation data
+    The customized optuna objective over either training data or a combination of training data and validation data
+
+    A Trial instance represents a process of evaluating an objective function.
+    This instance is passed to an objective function and provides interfaces to get parameter suggestion,
+    manage the trial’s state, and set/get user-defined attributes of the trial, so that Optuna users can define
+    a custom objective function through the interfaces.
+    Basically, Optuna users only use it in their custom objective functions.
     """
-    def __init__(self, ranker=None, epochs=None, vali_k=None, label_type=None, train_data=None, vali_data=None, gpu=False, device=None):
+    def __init__(self, ranker=None, epochs=None, label_type=None, train_data=None,
+                 vali_objective=False, vali_k=None, vali_data=None, gpu=False, device=None):
         self.ranker = ranker
         self.epochs = epochs
-        self.vali_k = vali_k
         self.train_data = train_data
+        self.vali_objective = vali_objective
+        self.vali_k = vali_k
         self.vali_data = vali_data
         self.label_type = label_type
         self.gpu, self.device = gpu, device
 
     def __call__(self, trial):
-        for epoch_k in range(1, self.epochs + 1):
-            # one-epoch fitting over the entire training data
-            presort = self.train_data.presort
-            for qid, batch_rankings, batch_stds in self.train_data:  # _, [batch, ranking_size, num_features], [batch, ranking_size]
-                if self.gpu: batch_rankings, batch_stds = batch_rankings.to(self.device), batch_stds.to(self.device)
-                batch_loss, stop_training = self.ranker.train(batch_rankings, batch_stds, qid=qid, epoch_k=epoch_k,
-                                                         presort=presort, label_type=self.label_type)
-                #print(batch_loss)
+        if self.vali_objective:
+            for epoch_k in range(1, self.epochs + 1): # one-epoch fitting over the entire training data
+                presort = self.train_data.presort
+                for qid, batch_rankings, batch_stds in self.train_data:  # _, [batch, ranking_size, num_features], [batch, ranking_size]
+                    if self.gpu: batch_rankings, batch_stds = batch_rankings.to(self.device), batch_stds.to(self.device)
+                    batch_loss, stop_training = self.ranker.train(batch_rankings, batch_stds, qid=qid, epoch_k=epoch_k,
+                                                             presort=presort, label_type=self.label_type)
+                    #print(batch_loss)
+                    if stop_training: break
+                # Report intermediate objective value.
+                vali_eval_tmp = ndcg_at_k(ranker=self.ranker, test_data=self.vali_data, k=self.vali_k,
+                                          label_type=self.label_type, gpu=self.gpu, device=self.device)
+                vali_eval_v = vali_eval_tmp.data.numpy()
+                print(vali_eval_v)
+                intermediate_value = vali_eval_v
+                trial.report(intermediate_value, epoch_k)
+                '''
+                Report an objective function value for a given step.
+                The reported values are used by the pruners to determine whether this trial should be pruned.
+                '''
+                # Handle pruning based on the intermediate value.
+                if trial.should_prune():
+                    raise optuna.TrialPruned()
 
-                if stop_training: break
-
-            # Report intermediate objective value.
-            vali_eval_tmp = ndcg_at_k(ranker=self.ranker, test_data=self.vali_data, k=self.vali_k,
-                                      label_type=self.label_type, gpu=self.gpu, device=self.device)
+            # using validation data again
+            vali_eval_tmp = ndcg_at_k(ranker=self.ranker, test_data=self.vali_data,
+                                      k=self.vali_k, label_type=self.label_type, gpu=self.gpu, device=self.device)
             vali_eval_v = vali_eval_tmp.data.numpy()
-            print(vali_eval_v)
 
-            intermediate_value = vali_eval_v
-            trial.report(intermediate_value, epoch_k)
+            return vali_eval_v
+        else:
+            for epoch_k in range(1, self.epochs + 1): # one-epoch fitting over the entire training data
+                epoch_loss = torch.cuda.FloatTensor([0.0]) if self.gpu else torch.FloatTensor([0.0])
+                presort = self.train_data.presort
+                for qid, batch_rankings, batch_stds in self.train_data:  # _, [batch, ranking_size, num_features], [batch, ranking_size]
+                    if self.gpu: batch_rankings, batch_stds = batch_rankings.to(self.device), batch_stds.to(self.device)
+                    batch_loss, stop_training = self.ranker.train(batch_rankings, batch_stds, qid=qid, epoch_k=epoch_k,
+                                                                  presort=presort, label_type=self.label_type)
+                    #print(batch_loss)
+                    if stop_training:
+                        break
+                    else:
+                        epoch_loss += batch_loss.item()
 
-            # Handle pruning based on the intermediate value.
-            if trial.should_prune():
-                raise optuna.TrialPruned()
+                intermediate_value = - epoch_loss # due to the maximize setting
+                trial.report(intermediate_value, epoch_k)
+                '''
+                Report an objective function value for a given step.
+                The reported values are used by the pruners to determine whether this trial should be pruned.
+                '''
+                # Handle pruning based on the intermediate value.
+                if trial.should_prune():
+                    raise optuna.TrialPruned()
 
-        # using validation data again
-        vali_eval_tmp = ndcg_at_k(ranker=self.ranker, test_data=self.vali_data,
-                                  k=self.vali_k, label_type=self.label_type, gpu=self.gpu, device=self.device)
-        vali_eval_v = vali_eval_tmp.data.numpy()
+            return - epoch_loss
 
-        return vali_eval_v
 
 
 class AutoLTREvaluator(LTREvaluator):
@@ -63,6 +99,12 @@ class AutoLTREvaluator(LTREvaluator):
     """
     def __init__(self, frame_id='AutoLTR', cuda=None):
         super(AutoLTREvaluator, self).__init__(frame_id=frame_id, cuda=cuda)
+
+    def get_data_setting(self):
+        return self.data_setting.load_setting()
+
+    def get_eval_setting(self):
+        return self.eval_setting.load_setting()
 
     def setup_output(self, data_dict=None, eval_dict=None):
         """
@@ -74,13 +116,10 @@ class AutoLTREvaluator(LTREvaluator):
         :return:
         """
         model_id = self.model_parameter.model_id
-        grid_search, do_vali, dir_output = eval_dict['grid_search'], eval_dict['do_validation'], eval_dict['dir_output']
+        dir_output = eval_dict['dir_output']
         mask_label = eval_dict['mask_label']
 
-        if grid_search:
-            dir_root = dir_output + '_'.join(['gpu', 'grid', model_id]) + '/' if self.gpu else dir_output + '_'.join(['grid', model_id]) + '/'
-        else:
-            dir_root = dir_output
+        dir_root = dir_output + '_'.join(['gpu', 'auto', model_id]) + '/' if self.gpu else dir_output + '_'.join(['auto', model_id]) + '/'
 
         eval_dict['dir_root'] = dir_root
         if not os.path.exists(dir_root): os.makedirs(dir_root)
@@ -121,8 +160,8 @@ class AutoLTREvaluator(LTREvaluator):
             self.set_scoring_function_setting(debug=debug)
             self.set_model_setting(debug=debug, model_id=model_id)
 
-        self.data_dict = self.get_default_data_setting()
-        self.eval_dict = self.get_default_eval_setting()
+        self.data_dict = self.get_data_setting()
+        self.eval_dict = self.get_eval_setting()
 
         self.declare_global(model_id=model_id)
 
@@ -185,15 +224,27 @@ class AutoLTREvaluator(LTREvaluator):
             train_data, test_data, vali_data = self.load_data(self.eval_dict, self.data_dict, fold_k)
 
             ranker = self.load_ranker(model_para_dict=model_para_dict, sf_para_dict=sf_para_dict)
-            study.optimize(LTRObjective(ranker=ranker, epochs=self.epochs,  vali_k=self.vali_k,
-                                        label_type=train_data.label_type,
-                                        train_data=train_data, vali_data=vali_data),
-                           n_trials=1) # ??? the meaning of n_trials
+
+            if self.eval_dict['vali_obj']:
+                study.optimize(LTRObjective(ranker=ranker, epochs=self.epochs,
+                                            label_type=train_data.label_type, train_data=train_data,
+                                            vali_objective=True, vali_k=self.vali_k, vali_data=vali_data),
+                               n_trials=1)
+            else:
+                study.optimize(LTRObjective(ranker=ranker, epochs=self.epochs,
+                                            label_type=train_data.label_type, train_data=train_data,
+                                            vali_objective=False),
+                               n_trials=1)
+            ''' the meaning of n_trials
+            The number of trials. If this argument is set to None, there is no limitation on the number of trials.
+            If timeout is also set to None, the study continues to create trials until it receives a termination signal
+            such as Ctrl+C or SIGTERM.
+            '''
             # store loss
-            vali_eval_tmp = ndcg_at_k(ranker=ranker, test_data=vali_data, k=self.vali_k,
-                                      label_type=vali_data.label_type, gpu=self.gpu, device=self.device)
-            vali_eval_v = vali_eval_tmp.data.numpy()
-            k_flod_average += vali_eval_v
+            test_eval_tmp = ndcg_at_k(ranker=ranker, test_data=test_data, k=1, label_type=test_data.label_type,
+                                      gpu=self.gpu, device=self.device)
+            test_eval_v = test_eval_tmp.data.numpy()
+            k_flod_average += test_eval_v
 
         # calculate loss todo average k-fold validation score
         k_flod_average /= self.fold_num
@@ -209,7 +260,7 @@ class AutoLTREvaluator(LTREvaluator):
             auto_evaluator.setup_auto_kfold_cv_eval(debug=debug, model_id=model_id, data_id=data_id,
                                                     dir_data=dir_data, dir_output=dir_output)
 
-        global_study.optimize(auto_evaluator, n_trials=10)
+        global_study.optimize(auto_evaluator, n_trials=1) # todo try a larger value
 
         global_study_dic = {}
         global_study_dic["best_params"] = global_study.best_params
