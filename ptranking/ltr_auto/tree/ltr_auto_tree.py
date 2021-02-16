@@ -205,11 +205,7 @@ class AutoTreeLTREvaluator(TreeLTREvaluator):
     The class for evaluating different adversarial adversarial ltr methods.
     """
     def __init__(self, frame_id='AutoLTR', cuda=None):
-<<<<<<< HEAD
-        super(AutoTreeLTREvaluator, self).__init__(frame_id=frame_id)
-=======
         super(AutoTreeLTREvaluator, self).__init__(frame_id=frame_id, cuda=cuda)
->>>>>>> update ltr_auto
 
 
     def setup_output(self, data_dict=None, eval_dict=None):
